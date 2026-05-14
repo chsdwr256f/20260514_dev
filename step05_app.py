@@ -13,7 +13,7 @@ from rdflib.namespace import OWL, RDF, RDFS, DCTERMS
 try:
     import ollama
     try:
-        models = [m["name"] for m in ollama.list()["models"]]
+        models = ollama.list()["models"]
         ollama_ok = True
         OLLAMA_AVAILABLE = True
     except Exception as e:
