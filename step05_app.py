@@ -12,6 +12,8 @@ from rdflib.namespace import OWL, RDF, RDFS, DCTERMS
 
 try:
     import ollama
+    client = ollama.Client(host='http://localhost:11434')
+    models = client.list()
     OLLAMA_AVAILABLE = True
 except ImportError:
     OLLAMA_AVAILABLE = False
