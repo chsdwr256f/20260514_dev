@@ -15,7 +15,6 @@ try:
     client = OpenAI(
         api_key=st.secrets["OPENAI_API_KEY"]
     )
-
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
@@ -399,15 +398,10 @@ Question:
 
     try:
 
-        response = client.chat.completions.create(
+        response = client.responses.create(
             model="gpt-5.4-mini",
-            temperature=0,
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
+            input=prompt,
+            temperature=0
         )
 
         topic = (
