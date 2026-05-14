@@ -12,11 +12,8 @@ from rdflib.namespace import OWL, RDF, RDFS, DCTERMS
 
 try:
     import ollama
-
-    ollama.list()
     OLLAMA_AVAILABLE = True
-
-except Exception:
+except ImportError:
     OLLAMA_AVAILABLE = False
 
 try:
@@ -353,42 +350,123 @@ def build_evidence_graph(evidence_rows):
         G.add_edge(s, o, label=p)
 
     return G
-    
+
+
+TOPIC_TO_CLASSES = {
+    "programme": ["Programme", "School", "College", "ContactPoint"],
+    "course": ["Course", "Programme", "School", "Staff", "AcademicYear"],
+    "staff": ["Staff", "Person", "School", "ResearchGroup"],
+    "research": ["ResearchProject", "ResearchGroup", "ResearchCentre", "Topic", "Staff"],
+    "policy": ["Policy", "Regulation", "Document"],
+    "scholarship": ["Scholarship", "Programme", "School"],
+    "contact": ["ContactPoint", "Staff", "School", "Programme"],
+    "event": ["Event", "School", "Staff"],
+    "general": []
+}
+
+def classify_question_topic(question, model_name="llama3.1:8b"):
+    """
+    Use local LLM only for lightweight intent/topic classification.
+    """
+
+    if not OLLAMA_AVAILABLE:
+        return "general"
+
+    prompt = f"""
+You are classifying questions for a university knowledge graph.
+
+Choose ONLY ONE topic from this list:
+
+programme
+course
+staff
+research
+policy
+scholarship
+contact
+event
+general
+
+Return ONLY the topic word.
+
+Question:
+{question}
+"""
+
+    try:
+        response = ollama.generate(
+            model=model_name,
+            prompt=prompt
+        )
+
+        if isinstance(response, dict):
+            topic = response.get("response", "").strip().lower()
+        else:
+            topic = str(response).strip().lower()
+
+        if topic in TOPIC_TO_CLASSES:
+            return topic
+
+        return "general"
+
+    except Exception:
+        return "general"
+
+
 def ask_local_llm(question, context, model_name="llama3.1:8b"):
+    """
+    Ask local LLM using filtered KG context only.
+    """
+
     if not OLLAMA_AVAILABLE:
         return None, "Ollama Python package is not installed. Run: pip install ollama"
 
+    # Step 1 — detect topic
+    topic = classify_question_topic(question, model_name)
+
+    # Step 2 — build stricter prompt
     prompt = f"""
-    You are assisting users with questions about a university knowledge graph.
-    
-    The context is a set of RDF-style triples in the format:
-    Subject | Predicate | Object
-    
-    Your task:
-    - Answer the question using ONLY the provided triples.
-    - Do NOT use external knowledge.
-    - Do NOT invent facts.
-    - If the answer is not clearly supported by the triples, say:
-      "The knowledge graph does not contain enough information to answer this question."
-    
-    Guidelines:
-    - Identify relevant entities from the triples.
-    - Use relationships (predicates) to connect information.
-    - Prefer concise and factual answers.
-    - When possible, mention entity names exactly as shown.
-    
-    Retrieved triples:
-    {context}
-    
-    User question:
-    {question}
-    """
+You are assisting users with a university knowledge graph.
+
+Question topic:
+{topic}
+
+The context below contains RDF-style triples:
+
+Subject | Predicate | Object
+
+Rules:
+- Use ONLY the provided triples.
+- Do NOT use external knowledge.
+- Do NOT invent facts.
+- If the answer is not clearly supported, say:
+"The knowledge graph does not contain enough information to answer this question."
+
+Instructions:
+- Focus only on entities relevant to the topic.
+- Use predicates to connect information.
+- Prefer short and factual answers.
+- Mention entity labels exactly as written when possible.
+- Ignore unrelated triples.
+
+Retrieved triples:
+{context}
+
+User question:
+{question}
+"""
 
     try:
-        response = ollama.generate(model=model_name, prompt=prompt)
+        response = ollama.generate(
+            model=model_name,
+            prompt=prompt
+        )
+
         if isinstance(response, dict):
             return response.get("response", ""), None
+
         return str(response), None
+
     except Exception as e:
         return None, str(e)
 
@@ -408,10 +486,27 @@ with st.sidebar:
 
 try:
     graph = load_graph_from_file(local_path=TTL_FILE_PATH)
+
 except Exception as e:
     st.error(f"Failed to load graph: {e}")
-    st.stop()
 
+    st.markdown("### Raw TTL preview")
+
+    try:
+        with open(TTL_FILE_PATH, "r", encoding="utf-8") as f:
+            ttl_text = f.read()
+
+        st.text_area(
+            "TTL file content",
+            ttl_text,
+            height=500
+        )
+
+    except Exception as file_error:
+        st.error(f"Could not read TTL file: {file_error}")
+
+    st.stop()
+    
 st.success(f"Graph loaded successfully. Total triples: {len(graph):,}")
 
 entities_df = list_entity_candidates(graph)
@@ -442,21 +537,44 @@ with main_tab1:
         if not user_question.strip():
             st.warning("Please enter a question.")
         else:
-            # 1. retrieve relevant entities
+            # 1. classify question topic
+            topic = classify_question_topic(
+                user_question,
+                model_name=model_name
+            )
+
+            allowed_classes = TOPIC_TO_CLASSES.get(topic, [])
+
+            st.markdown("### Detected topic")
+            st.write(topic)
+
+            # 2. filter entities by topic/classes
+            if allowed_classes:
+                filtered_entities_df = entities_df[
+                    entities_df["type"].isin(allowed_classes)
+                ].copy()
+            else:
+                filtered_entities_df = entities_df.copy()
+
+            # 3. retrieve relevant entities from filtered set only
             matched_entities = retrieve_relevant_entities(
-                entities_df, user_question, top_k=5
+                filtered_entities_df,
+                user_question,
+                top_k=5
             )
 
-            # 2. build context + evidence
+            # 4. build context + evidence
             context_text, evidence_rows = build_qa_context(
-                graph, matched_entities, max_entities=3
+                graph,
+                matched_entities,
+                max_entities=3
             )
 
-            # store for later use
             st.session_state["evidence_rows"] = evidence_rows
 
             # ---- matched entities ----
             st.markdown("### Matched entities")
+
             if matched_entities.empty:
                 st.info("No relevant entities were retrieved from the graph.")
             else:
@@ -468,7 +586,9 @@ with main_tab1:
 
             # ---- LLM answer ----
             answer, error = ask_local_llm(
-                user_question, context_text, model_name=model_name
+                user_question,
+                context_text,
+                model_name=model_name
             )
 
             st.markdown("### Answer")
