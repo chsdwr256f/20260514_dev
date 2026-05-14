@@ -11,16 +11,14 @@ from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import OWL, RDF, RDFS, DCTERMS
 
 try:
-    import ollama
-    try:
-        models = ollama.list()["models"]
-        ollama_ok = True
-        OLLAMA_AVAILABLE = True
-    except Exception as e:
-        ollama_ok = False
-        OLLAMA_AVAILABLE = True
+    from openai import OpenAI
+    client = OpenAI(
+        api_key=st.secrets["OPENAI_API_KEY"]
+    )
+
+    OPENAI_AVAILABLE = True
 except ImportError:
-    OLLAMA_AVAILABLE = False
+    OPENAI_AVAILABLE = False
 
 try:
     from pyvis.network import Network
@@ -375,7 +373,7 @@ def classify_question_topic(question, model_name="llama3.1:8b"):
     Use local LLM only for lightweight intent/topic classification.
     """
 
-    if not OLLAMA_AVAILABLE:
+    if not OPENAI_AVAILABLE:
         return "general"
 
     prompt = f"""
@@ -400,15 +398,24 @@ Question:
 """
 
     try:
-        response = ollama.generate(
-            model=model_name,
-            prompt=prompt
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            temperature=0,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
         )
 
-        if isinstance(response, dict):
-            topic = response.get("response", "").strip().lower()
-        else:
-            topic = str(response).strip().lower()
+        topic = (
+            response.choices[0]
+            .message.content
+            .strip()
+            .lower()
+        )
 
         if topic in TOPIC_TO_CLASSES:
             return topic
@@ -424,11 +431,11 @@ def ask_local_llm(question, context, model_name="llama3.1:8b"):
     Ask local LLM using filtered KG context only.
     """
 
-    if not OLLAMA_AVAILABLE:
-        return None, "Ollama Python package is not installed. Run: pip install ollama"
+    if not OPENAI_AVAILABLE:
+        return None, OPENAI_ERROR
 
     # Step 1 — detect topic
-    topic = classify_question_topic(question, model_name)
+    topic = classify_question_topic(question)
 
     # Step 2 — build stricter prompt
     prompt = f"""
@@ -463,15 +470,21 @@ User question:
 """
 
     try:
-        response = ollama.generate(
-            model=model_name,
-            prompt=prompt
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            temperature=0,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
         )
 
-        if isinstance(response, dict):
-            return response.get("response", ""), None
+        answer = response.choices[0].message.content
 
-        return str(response), None
+        return answer, None
 
     except Exception as e:
         return None, str(e)
@@ -487,7 +500,7 @@ with st.sidebar:
     st.write(f"TTL exists: {TTL_FILE_PATH.exists()}")
     st.markdown("---")
     st.header("Packages")
-    st.write(f"Ollama available: {OLLAMA_AVAILABLE}")
+    st.write(f"Ollama available: {OPENAI_AVAILABLE}")
     st.write(f"Pyvis available: {PYVIS_AVAILABLE}")
 
 try:
