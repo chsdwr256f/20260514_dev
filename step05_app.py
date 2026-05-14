@@ -368,7 +368,7 @@ TOPIC_TO_CLASSES = {
     "general": []
 }
 
-def classify_question_topic(question, model_name="llama3.1:8b"):
+def classify_question_topic(question):
     """
     Use local LLM only for lightweight intent/topic classification.
     """
@@ -400,7 +400,7 @@ Question:
     try:
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5.4-mini",
             temperature=0,
             messages=[
                 {
