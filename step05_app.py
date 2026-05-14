@@ -281,14 +281,40 @@ def score_entity_match(query, row):
 
     return score
 
-
-def retrieve_relevant_entities(entities_df, question, top_k=5):
+def retrieve_relevant_entities(
+    entities_df,
+    question,
+    topic=None,
+    top_k=5
+):
     if entities_df.empty:
-        return pd.DataFrame(columns=["label", "uri", "type", "match_score"])
+        return pd.DataFrame(
+            columns=["label", "uri", "type", "match_score"]
+        )
 
     working = entities_df.copy()
-    working["match_score"] = working.apply(lambda r: score_entity_match(question, r), axis=1)
-    working = working.loc[working["match_score"] > 0].sort_values("match_score", ascending=False)
+
+    # optional topic filtering
+    if topic and topic in TOPIC_TO_CLASSES:
+
+        allowed_classes = TOPIC_TO_CLASSES[topic]
+
+        working = working.loc[
+            working["type"].str.lower().isin(
+                [c.lower() for c in allowed_classes]
+            )
+        ]
+
+    working["match_score"] = working.apply(
+        lambda r: score_entity_match(question, r),
+        axis=1
+    )
+
+    working = (
+        working.loc[working["match_score"] > 0]
+        .sort_values("match_score", ascending=False)
+    )
+
     return working.head(top_k).reset_index(drop=True)
 
 
