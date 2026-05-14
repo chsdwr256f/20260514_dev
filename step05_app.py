@@ -12,8 +12,13 @@ from rdflib.namespace import OWL, RDF, RDFS, DCTERMS
 
 try:
     import ollama
-    client = ollama.Client(host='http://localhost:11434')
-    OLLAMA_AVAILABLE = True
+    try:
+        models = [m["name"] for m in ollama.list()["models"]]
+        ollama_ok = True
+        OLLAMA_AVAILABLE = True
+    except Exception as e:
+        ollama_ok = False
+        OLLAMA_AVAILABLE = False
 except ImportError:
     OLLAMA_AVAILABLE = False
 
