@@ -3,3 +3,4 @@ pandas
 rdflib
 pyvis
 networkx
+ollama
