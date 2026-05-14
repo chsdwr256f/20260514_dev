@@ -10,10 +10,15 @@ import streamlit as st
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import OWL, RDF, RDFS, DCTERMS
 
+OLLAMA_AVAILABLE = False
+
 try:
     import ollama
+
+    ollama.list()
     OLLAMA_AVAILABLE = True
-except ImportError:
+
+except Exception:
     OLLAMA_AVAILABLE = False
 
 try:
