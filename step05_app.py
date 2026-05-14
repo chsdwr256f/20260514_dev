@@ -18,7 +18,7 @@ try:
         OLLAMA_AVAILABLE = True
     except Exception as e:
         ollama_ok = False
-        OLLAMA_AVAILABLE = False
+        OLLAMA_AVAILABLE = True
 except ImportError:
     OLLAMA_AVAILABLE = False
 
