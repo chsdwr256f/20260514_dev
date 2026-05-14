@@ -420,7 +420,7 @@ Question:
         return "general"
 
 
-def ask_local_llm(question, context, model_name="llama3.1:8b"):
+def ask_llm(question, context, model_name="llama3.1:8b"):
     """
     Ask local LLM using filtered KG context only.
     """
@@ -465,15 +465,10 @@ User question:
 
     try:
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            temperature=0,
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
+        response = client.responses.create(
+            model="gpt-5.4-mini",
+            input=prompt,
+            temperature=0
         )
 
         answer = response.choices[0].message.content
@@ -535,12 +530,9 @@ main_tab1, main_tab2, main_tab3 = st.tabs([
 
 with main_tab1:
     st.subheader("Ask a question")
-
-    # model selection
-    model_name = st.text_input("Ollama model name", value="llama3.1:8b")
-
+    
     # user question
-    user_question = st.text_input("Ask a question about the university knowledge graph")
+    user_question = st.text_input("Ask a question about the university")
 
     # ensure session state exists
     if "evidence_rows" not in st.session_state:
@@ -551,39 +543,41 @@ with main_tab1:
             st.warning("Please enter a question.")
         else:
             # 1. classify question topic
-            topic = classify_question_topic(
-                user_question,
-                model_name=model_name
-            )
+            topic = classify_question_topic(user_question)
 
-            allowed_classes = TOPIC_TO_CLASSES.get(topic, [])
+            st.write(f"Detected topic: {topic}")
 
-            st.markdown("### Detected topic")
-            st.write(topic)
-
-            # 2. filter entities by topic/classes
-            if allowed_classes:
-                filtered_entities_df = entities_df[
-                    entities_df["type"].isin(allowed_classes)
-                ].copy()
-            else:
-                filtered_entities_df = entities_df.copy()
-
-            # 3. retrieve relevant entities from filtered set only
+            # 2. retrieve relevant entities
             matched_entities = retrieve_relevant_entities(
-                filtered_entities_df,
+                entities_df,
                 user_question,
+                topic=topic,
                 top_k=5
             )
 
-            # 4. build context + evidence
-            context_text, evidence_rows = build_qa_context(
+            # 3. retrieve graph evidence
+            evidence_rows = retrieve_relevant_triples(
                 graph,
-                matched_entities,
-                max_entities=3
+                matched_entities
             )
 
-            st.session_state["evidence_rows"] = evidence_rows
+            st.session_state["evidence_rows"] = evidence_rows            
+            
+            # 4. convert evidence to text
+            context = triples_to_text(evidence_rows)
+
+            # 5. ask LLM
+            answer, error = ask_llm(
+                user_question,
+                context
+            )
+
+            if error:
+                st.error(error)
+
+            else:
+                st.markdown("### Answer")
+                st.write(answer)
 
             # ---- matched entities ----
             st.markdown("### Matched entities")
@@ -598,10 +592,9 @@ with main_tab1:
                 )
 
             # ---- LLM answer ----
-            answer, error = ask_local_llm(
+            answer, error = ask_llm(
                 user_question,
-                context_text,
-                model_name=model_name
+                context_text
             )
 
             st.markdown("### Answer")
