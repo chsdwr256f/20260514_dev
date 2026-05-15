@@ -3,4 +3,4 @@ pandas
 rdflib
 pyvis
 networkx
-ollama
+openai
