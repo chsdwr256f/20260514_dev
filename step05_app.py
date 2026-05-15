@@ -628,7 +628,7 @@ Question:
             temperature=0
         )
 
-        answer = response.choices[0].message.content
+        answer = response.output_text
 
         return answer, None
 
