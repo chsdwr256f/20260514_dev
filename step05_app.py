@@ -612,7 +612,7 @@ Question:
         st.warning(f"Topic classification failed: {e}")
         return "general"
 
-def ask_llm(question, context):
+def ask_llm(question, matched_entities_text, triples_context):
 
     if not OPENAI_AVAILABLE:
         return None, f"OpenAI unavailable: {OPENAI_ERROR}"
