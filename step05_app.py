@@ -610,7 +610,10 @@ Rules:
 - Use ONLY the provided triples.
 - Do NOT use external knowledge.
 - Do NOT invent facts.
-- If the answer is not supported, say:
+- A triple with rdf:type can be used to identify the entity type.
+- A triple with rdfs:label can be used as the entity name.
+- For listing questions, return relevant entity labels if the label and type support the question.
+- If no relevant label or type is available, say:
 "The knowledge graph does not contain enough information."
 
 Retrieved triples:
@@ -646,7 +649,7 @@ with st.sidebar:
     st.write(f"TTL exists: {TTL_FILE_PATH.exists()}")
     st.markdown("---")
     st.header("Packages")
-    st.write(f"Ollama available: {OPENAI_AVAILABLE}")
+    st.write(f"LLM available: {OPENAI_AVAILABLE}")
     st.write(f"Pyvis available: {PYVIS_AVAILABLE}")
 
 try:
