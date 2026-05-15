@@ -726,7 +726,7 @@ with main_tab1:
             # 5. ask LLM
             answer, error = ask_llm(
                 user_question,
-                context
+                context_text
             )
 
             if error:
