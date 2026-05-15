@@ -633,8 +633,8 @@ Rules:
 - If no Retrieved triples is provided, say:
 "The knowledge graph does not contain enough information."
 
-Retrieved triples:
-{context}
+Evidence triples:
+{triples_context}
 
 Matched entities:
 {matched_entities_text}
