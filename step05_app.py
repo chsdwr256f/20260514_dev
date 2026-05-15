@@ -421,6 +421,24 @@ def build_qa_context(g, matched_entities_df, max_entities=3):
 
     return "\n".join(context_lines).strip(), evidence_rows
 
+def matched_entities_to_text(matched_entities, max_rows=10):
+    if matched_entities is None or matched_entities.empty:
+        return ""
+
+    lines = []
+
+    for _, row in matched_entities.head(max_rows).iterrows():
+        label = row.get("label", "")
+        entity_type = row.get("type", "")
+        uri = row.get("uri", "")
+        score = row.get("match_score", "")
+
+        lines.append(
+            f"Label: {label} | Type: {entity_type} | URI: {uri} | Match score: {score}"
+        )
+
+    return "\n".join(lines)
+
 def build_evidence_graph(evidence_rows):
     G = nx.DiGraph()
 
@@ -600,24 +618,26 @@ def ask_llm(question, context):
         return None, f"OpenAI unavailable: {OPENAI_ERROR}"
 
     prompt = f"""
-You are assisting users with a university knowledge graph.
+You are assisting users with a university domain question.
 
 The context below contains RDF-style triples:
 
 Subject | Predicate | Object
 
 Rules:
-- Use ONLY the provided triples.
-- Do NOT use external knowledge.
+- Use matched entities and evidence triples as candidate answers.
 - Do NOT invent facts.
 - A triple with rdf:type can be used to identify the entity type.
 - A triple with rdfs:label can be used as the entity name.
 - For listing questions, return relevant entity labels if the label and type support the question.
-- If no relevant label or type is available, say:
+- If no Retrieved triples is provided, say:
 "The knowledge graph does not contain enough information."
 
 Retrieved triples:
 {context}
+
+Matched entities:
+{matched_entities_text}
 
 Question:
 {question}
@@ -727,8 +747,12 @@ with main_tab1:
             context_text = triples_to_text(evidence_rows)
 
             # 5. ask LLM
+            matched_entities_text = matched_entities_to_text(matched_entities)
+            context_text = triples_to_text(evidence_rows)
+            
             answer, error = ask_llm(
                 user_question,
+                matched_entities_text,
                 context_text
             )
 
