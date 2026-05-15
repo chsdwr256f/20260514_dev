@@ -721,7 +721,7 @@ with main_tab1:
             st.session_state["evidence_rows"] = evidence_rows            
             
             # 4. convert evidence to text
-            context = triples_to_text(evidence_rows)
+            context_text = triples_to_text(evidence_rows)
 
             # 5. ask LLM
             answer, error = ask_llm(
