@@ -325,6 +325,35 @@ def retrieve_relevant_entities(
 
     return working.head(top_k).reset_index(drop=True)
 
+def retrieve_relevant_triples(graph, matched_entities):
+    if matched_entities is None or matched_entities.empty:
+        return []
+
+    evidence_rows = []
+
+    for _, row in matched_entities.iterrows():
+        uri = row.get("uri")
+
+        if pd.isna(uri):
+            continue
+
+        node = URIRef(str(uri))
+
+        for s, p, o in graph.triples((node, None, None)):
+            evidence_rows.append({
+                "subject": str(s),
+                "predicate": str(p),
+                "object": str(o)
+            })
+
+        for s, p, o in graph.triples((None, None, node)):
+            evidence_rows.append({
+                "subject": str(s),
+                "predicate": str(p),
+                "object": str(o)
+            })
+
+    return evidence_rows
 
 def get_local_triples_for_node(g, node, max_outgoing=10, max_incoming=10):
     triples = []
