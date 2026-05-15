@@ -374,6 +374,20 @@ def get_local_triples_for_node(g, node, max_outgoing=10, max_incoming=10):
 
     return triples
 
+def triples_to_text(evidence_rows, max_rows=80):
+    if not evidence_rows:
+        return ""
+
+    lines = []
+
+    for row in evidence_rows[:max_rows]:
+        subject = row.get("subject", "")
+        predicate = row.get("predicate", "")
+        object_ = row.get("object", "")
+
+        lines.append(f"{subject} | {predicate} | {object_}")
+
+    return "\n".join(lines)
 
 def build_qa_context(g, matched_entities_df, max_entities=3):
     if matched_entities_df.empty:
