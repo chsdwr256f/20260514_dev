@@ -583,21 +583,16 @@ Question:
             temperature=0
         )
 
-        topic = (
-            response.choices[0]
-            .message.content
-            .strip()
-            .lower()
-        )
+        topic = response.output_text.strip().lower()
 
         if topic in TOPIC_TO_CLASSES:
             return topic
 
         return "general"
 
-    except Exception:
+    except Exception as e:
+        st.warning(f"Topic classification failed: {e}")
         return "general"
-
 
 def ask_llm(question, context):
 
