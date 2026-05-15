@@ -756,12 +756,18 @@ with main_tab1:
                 context_text
             )
 
+
+            # display answer
+            st.markdown("### Answer")
+            
             if error:
                 st.error(error)
-
-            else:
-                st.markdown("### Answer")
+            
+            elif answer:
                 st.write(answer)
+            
+            else:
+                st.info("No answer was returned.")
 
             # ---- matched entities ----
             st.markdown("### Matched entities")
@@ -774,20 +780,6 @@ with main_tab1:
                     width="stretch",
                     height=220,
                 )
-
-            # ---- LLM answer ----
-            answer, error = ask_llm(
-                user_question,
-                context_text
-            )
-
-            st.markdown("### Answer")
-            if error:
-                st.error(error)
-            elif answer:
-                st.write(answer)
-            else:
-                st.info("No answer was returned.")
 
             # ---- evidence triples ----
             st.markdown("### Evidence triples")
