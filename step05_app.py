@@ -9,15 +9,19 @@ import pandas as pd
 import streamlit as st
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import OWL, RDF, RDFS, DCTERMS
+from openai import OpenAI
+
+OPENAI_AVAILABLE = False
+OPENAI_ERROR = None
+client = None
 
 try:
-    from openai import OpenAI
     client = OpenAI(
         api_key=st.secrets["OPENAI_API_KEY"]
     )
     OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
+except Exception as e:
+    OPENAI_ERROR = str(e)
 
 try:
     from pyvis.network import Network
@@ -433,14 +437,110 @@ def build_evidence_graph(evidence_rows):
 
 
 TOPIC_TO_CLASSES = {
-    "programme": ["Programme", "School", "College", "ContactPoint"],
-    "course": ["Course", "Programme", "School", "Staff", "AcademicYear"],
-    "staff": ["Staff", "Person", "School", "ResearchGroup"],
-    "research": ["ResearchProject", "ResearchGroup", "ResearchCentre", "Topic", "Staff"],
-    "policy": ["Policy", "Regulation", "Document"],
-    "scholarship": ["Scholarship", "Programme", "School"],
-    "contact": ["ContactPoint", "Staff", "School", "Programme"],
-    "event": ["Event", "School", "Staff"],
+    "programme": [
+        "Programme",
+        "School",
+        "College",
+        "Department",
+        "ContactPoint",
+        "AcademicYear",
+        "Scholarship"
+    ],
+
+    "course": [
+        "Course",
+        "Programme",
+        "School",
+        "Department",
+        "Staff",
+        "AcademicYear",
+        "ContactPoint"
+    ],
+
+    "staff": [
+        "Staff",
+        "Person",
+        "School",
+        "Department",
+        "College",
+        "ResearchGroup",
+        "ResearchCentre",
+        "ContactPoint"
+    ],
+
+    "research": [
+        "ResearchProject",
+        "ResearchGroup",
+        "ResearchCentre",
+        "Topic",
+        "Staff",
+        "School",
+        "Department",
+        "Publication"
+    ],
+
+    "policy": [
+        "Policy",
+        "Regulation",
+        "Document",
+        "Requirement",
+        "AssessmentPolicy",
+        "CourseRequirement",
+        "EntryRequirement"
+    ],
+
+    "scholarship": [
+        "Scholarship",
+        "Programme",
+        "School",
+        "Department",
+        "College",
+        "ContactPoint"
+    ],
+
+    "contact": [
+        "ContactPoint",
+        "Staff",
+        "Person",
+        "School",
+        "Department",
+        "College",
+        "Programme",
+        "Course"
+    ],
+
+    "event": [
+        "Event",
+        "School",
+        "Department",
+        "Staff",
+        "ResearchGroup",
+        "ResearchCentre",
+        "Programme"
+    ],
+
+    "student": [
+        "Student",
+        "Programme",
+        "Course",
+        "School",
+        "Department",
+        "Scholarship",
+        "Policy",
+        "Requirement",
+        "ContactPoint"
+    ],
+
+    "university unit": [
+        "OrganisationUnit",
+        "College",
+        "School",
+        "Department",
+        "ResearchCentre",
+        "ResearchGroup",
+        "ExternalOrganisation"
+    ],
+
     "general": []
 }
 
@@ -455,7 +555,7 @@ def classify_question_topic(question):
     prompt = f"""
 You are classifying questions for a university knowledge graph.
 
-Choose ONLY ONE topic from this list:
+Choose ONLY ONE most relevant topic from this list that the user trying to find:
 
 programme
 course
@@ -465,6 +565,8 @@ policy
 scholarship
 contact
 event
+student
+university unit (e.g. college/department/school etc.)
 general
 
 Return ONLY the topic word.
@@ -497,23 +599,13 @@ Question:
         return "general"
 
 
-def ask_llm(question, context, model_name="llama3.1:8b"):
-    """
-    Ask local LLM using filtered KG context only.
-    """
+def ask_llm(question, context):
 
     if not OPENAI_AVAILABLE:
-        return None, OPENAI_ERROR
+        return None, f"OpenAI unavailable: {OPENAI_ERROR}"
 
-    # Step 1 — detect topic
-    topic = classify_question_topic(question)
-
-    # Step 2 — build stricter prompt
     prompt = f"""
 You are assisting users with a university knowledge graph.
-
-Question topic:
-{topic}
 
 The context below contains RDF-style triples:
 
@@ -523,20 +615,13 @@ Rules:
 - Use ONLY the provided triples.
 - Do NOT use external knowledge.
 - Do NOT invent facts.
-- If the answer is not clearly supported, say:
-"The knowledge graph does not contain enough information to answer this question."
-
-Instructions:
-- Focus only on entities relevant to the topic.
-- Use predicates to connect information.
-- Prefer short and factual answers.
-- Mention entity labels exactly as written when possible.
-- Ignore unrelated triples.
+- If the answer is not supported, say:
+"The knowledge graph does not contain enough information."
 
 Retrieved triples:
 {context}
 
-User question:
+Question:
 {question}
 """
 
